@@ -1,8 +1,7 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
-import firebase_admin
-from firebase_admin import credentials, firestore
 
 # --- 1. CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -11,28 +10,10 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. CONEXIÓN ROBUSTA A FIREBASE ---
-@st.cache_resource
-def iniciar_db():
-    # Evita inicializar múltiples veces la misma App
-    if not firebase_admin._apps:
-        try:
-            # Obtener credenciales desde los Secrets de Streamlit
-            creds_dict = dict(st.secrets["firebase"])
-            # Limpieza de la clave privada (manejo de saltos de línea)
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            
-            cred = credentials.Certificate(creds_dict)
-            firebase_admin.initialize_app(cred)
-        except Exception as e:
-            st.error(f"Error de configuración en Firebase: {e}")
-            return None
-    
-    # IMPORTANTE: Forzamos la conexión a la base de datos '(default)'
-    return firestore.client()
-
-# Inicializamos el cliente de base de datos
-db = iniciar_db()
+# --- 2. CONEXIÓN A GOOGLE SHEETS ---
+# Usamos el link que me proporcionaste
+url_sheet = "https://docs.google.com/spreadsheets/d/1uxq3CklaSh1lsn9Sx4lFN1AN9lDnVIPJKhH8UOjaTbo/edit?gid=0#gid=0"
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- 3. ESTILO VISUAL PREMIUM (DARK MODE) ---
 st.markdown("""
@@ -47,139 +28,84 @@ st.markdown("""
     .stButton>button {
         width: 100%; border-radius: 12px; border: 1px solid #d4af37;
         background-color: #1a1a1a; color: #d4af37; font-weight: bold;
-        padding: 0.5rem; transition: 0.3s;
+        transition: 0.3s;
     }
-    .stButton>button:hover { background-color: #d4af37; color: black; border: 1px solid #fff; }
-    
-    /* Estilo para las tarjetas de retos */
-    .reto-card {
-        padding: 20px; border: 1px solid #333; border-radius: 15px; 
-        background: #111; margin-bottom: 15px;
+    .stButton>button:hover { background-color: #d4af37; color: black; }
+    div[data-testid="stExpander"] {
+        background-color: #111111 !important;
+        border: 1px solid #333333 !important;
     }
-    
-    /* Ajuste de inputs para que se vean oscuros */
     input, select, textarea {
         background-color: #1a1a1a !important; color: white !important; border: 1px solid #333 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. NAVEGACIÓN LATERAL ---
-st.sidebar.markdown("<h2 style='color: #d4af37;'>Panel de Control</h2>", unsafe_allow_html=True)
-menu = st.sidebar.radio("Ir a:", ["🏠 Inicio", "👥 Registro Talento", "🏢 Publicar Reto", "🎯 Muro de Retos", "💬 Chat Comunitario"])
+# --- 4. NAVEGACIÓN ---
+st.markdown('<h1 class="main-title">Innovación Abierta Perú</h1>', unsafe_allow_html=True)
+menu = st.sidebar.radio("Ir a:", ["🏠 Inicio", "👥 Registro Talento", "🏢 Publicar Reto", "🎯 Muro de Retos"])
 
-# --- 5. LÓGICA DE LAS SECCIONES ---
+# --- 5. SECCIONES ---
 
-# SECCIÓN: INICIO
 if menu == "🏠 Inicio":
-    st.markdown('<h1 class="main-title">Plataforma de Innovación Abierta</h1>', unsafe_allow_html=True)
-    st.subheader("Conectando la Ciencia Renacyt con los Retos de la Industria")
-    
+    st.subheader("Ecosistema Digital de Innovación")
     col1, col2 = st.columns(2)
     with col1:
-        st.info("🧬 **Oferta de Innovación:** Investigadores Renacyt y Emprendedores Dinámicos listos para proponer soluciones.")
+        st.info("🧬 **Oferta:** Investigadores Renacyt y Emprendedores Dinámicos.")
     with col2:
-        st.success("🏢 **Demanda de Innovación:** Empresas e Instituciones que publican sus brechas tecnológicas y retos.")
-    
-    st.image("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200", caption="Ecosistema de Innovación Peruana")
+        st.success("🏢 **Demanda:** Empresas que buscan soluciones tecnológicas.")
+    st.image("https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200")
 
-# SECCIÓN: REGISTRO TALENTO
 elif menu == "👥 Registro Talento":
     st.header("Registro de Investigadores y Emprendedores")
-    with st.form("form_talento"):
-        nombre = st.text_input("Nombre Completo o Startup")
-        perfil = st.selectbox("Categoría de Actor", ["Investigador Renacyt", "Emprendedor Dinámico"])
-        region = st.selectbox("Región de Origen", ["Lima", "Arequipa", "Cusco", "Piura", "La Libertad", "Junín", "Puno", "Otros"])
-        especialidad = st.text_area("Describa su especialidad o solución tecnológica")
-        clave = st.text_input("Defina una clave básica", type="password")
+    with st.form("form_registro"):
+        nombre = st.text_input("Nombre / Institución")
+        perfil = st.selectbox("Perfil", ["Investigador Renacyt", "Emprendedor Dinámico"])
+        region = st.selectbox("Región", ["Lima", "Arequipa", "Cusco", "Piura", "La Libertad", "Puno", "Otros"])
+        especialidad = st.text_area("Describa su especialidad o solución")
+        clave = st.text_input("Clave básica", type="password")
         
         if st.form_submit_button("Registrar Perfil"):
-            if db and nombre and clave:
+            if nombre and clave:
                 try:
-                    # Guardar en la colección 'usuarios' de Firestore
-                    db.collection("usuarios").add({
-                        "nombre": nombre, "perfil": perfil, "region": region,
-                        "especialidad": especialidad, "clave": clave, "fecha": datetime.now()
-                    })
-                    st.success(f"¡Excelente {nombre}! Tu perfil ha sido registrado en la base de datos.")
-                except Exception as e:
-                    st.error(f"Error al conectar con la base de datos: {e}")
-            else:
-                st.warning("Por favor, completa los campos de Nombre y Clave.")
-
-# SECCIÓN: PUBLICAR RETO
-elif menu == "🏢 Publicar Reto":
-    st.header("Portal para Empresas e Instituciones")
-    st.write("Publique aquí sus retos de innovación para recibir propuestas del talento nacional.")
-    
-    with st.form("form_reto"):
-        empresa = st.text_input("Nombre de la Institución/Empresa")
-        titulo_reto = st.text_input("Título del Reto (Necesidad)")
-        descripcion = st.text_area("Descripción detallada del desafío técnico")
-        reg_impacto = st.selectbox("Región del Reto", ["Nacional", "Lima", "Arequipa", "Piura", "Cusco"])
-        
-        if st.form_submit_button("Publicar Desafío"):
-            if db and empresa and titulo_reto:
-                try:
-                    db.collection("retos").add({
-                        "empresa": empresa, "reto": titulo_reto, "descripcion": descripcion,
-                        "region": reg_impacto, "fecha": datetime.now()
-                    })
+                    # Leer datos actuales para no borrar lo anterior
+                    df_actual = conn.read(spreadsheet=url_sheet)
+                    
+                    # Nuevo registro
+                    nuevo_registro = pd.DataFrame([{
+                        "nombre": nombre,
+                        "perfil": perfil,
+                        "region": region,
+                        "especialidad": especialidad,
+                        "clave": clave,
+                        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }])
+                    
+                    # Unir y actualizar
+                    df_final = pd.concat([df_actual, nuevo_registro], ignore_index=True)
+                    conn.update(spreadsheet=url_sheet, data=df_final)
+                    
                     st.balloons()
-                    st.success("El reto ha sido publicado exitosamente en el muro.")
+                    st.success(f"¡Excelente {nombre}! Ya eres parte de la red nacional.")
                 except Exception as e:
-                    st.error(f"Error al publicar el reto: {e}")
+                    st.error(f"Error al conectar con Google Sheets: {e}")
             else:
-                st.warning("Debes completar el nombre de la empresa y el título del reto.")
+                st.warning("Completa el nombre y la clave por favor.")
 
-# SECCIÓN: MURO DE RETOS
 elif menu == "🎯 Muro de Retos":
-    st.header("🎯 Matchmaking: Retos de Innovación")
-    
-    if db:
-        try:
-            # Consultar retos ordenados por fecha
-            retos_ref = db.collection("retos").order_by("fecha", direction=firestore.Query.DESCENDING).stream()
-            
-            hay_retos = False
-            for r in retos_ref:
-                hay_retos = True
-                data = r.to_dict()
-                st.markdown(f"""
-                <div class="reto-card">
-                    <h3 style="color: #d4af37; margin-bottom: 5px;">{data['reto']}</h3>
-                    <p style="color: #888; font-size: 0.9rem;">🏢 {data['empresa']} | 📍 {data['region']}</p>
-                    <p style="color: #ddd;">{data['descripcion']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"Postular a {data['empresa']}", key=r.id):
-                    st.info(f"Conectando con {data['empresa']}... (Función disponible en v2.1)")
-            
-            if not hay_retos:
-                st.info("Aún no hay retos publicados. ¡Invita a las empresas a participar!")
-        except Exception as e:
-            st.error(f"Error al cargar el muro: {e}")
-
-# SECCIÓN: CHAT
-elif menu == "💬 Chat Comunitario":
-    st.header("💬 Espacio de Networking")
-    st.markdown("---")
-    
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Mostrar historial de mensajes
-    for m in st.session_state.messages:
-        with st.chat_message(m["role"]):
-            st.write(m["content"])
-
-    # Entrada de nuevo mensaje
-    if prompt := st.chat_input("Escribe una propuesta o consulta..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
+    st.header("🎯 Retos de Innovación Publicados")
+    try:
+        # Mostramos los datos registrados para ver el "Match"
+        df_registrados = conn.read(spreadsheet=url_sheet)
+        if not df_registrados.empty:
+            st.write("Explora el talento y retos actuales en el sistema:")
+            # Ocultamos la clave por seguridad al mostrar la tabla
+            st.dataframe(df_registrados.drop(columns=["clave"], errors='ignore'), use_container_width=True)
+        else:
+            st.info("Aún no hay registros en la base de datos.")
+    except:
+        st.info("La base de datos está iniciando. Registra el primer talento.")
 
 # --- PIE DE PÁGINA ---
 st.sidebar.markdown("---")
-st.sidebar.caption("Plataforma Innovación Abierta v2.0")
-st.sidebar.caption("Conectado a Google Firebase 🔥")
+st.sidebar.caption("v2.5 - Base de Datos en Google Sheets Active")
