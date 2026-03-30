@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # --- 2. CONEXIÓN A GOOGLE SHEETS ---
-# La conexión usará los Secrets (Service Account) para tener permisos de ESCRITURA
+# Se conecta usando los Secrets (Service Account) para permisos de escritura
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- 3. ESTILO VISUAL PREMIUM (DARK MODE) ---
@@ -41,142 +41,124 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. NAVEGACIÓN LATERAL ---
-st.sidebar.markdown("<h2 style='color: #d4af37;'>Menú Principal</h2>", unsafe_allow_html=True)
-menu = st.sidebar.radio("Seleccione una opción:", 
-    ["🏠 Inicio", "👥 Registro Talento (Investigadores)", "🏢 Publicar Reto (Empresas)", "🎯 Muro de Matchmaking"])
+# --- 4. FUNCIÓN AUXILIAR DE GUARDADO ---
+def guardar_en_gsheets(nueva_fila_dict):
+    try:
+        # Intentamos leer la hoja actual
+        try:
+            df_existente = conn.read()
+            # Si la hoja existe pero está vacía de datos (solo encabezados o nada)
+            if df_existente is None or df_existente.empty:
+                 df_existente = pd.DataFrame(columns=["ID", "Tipo", "Entidad", "Categoria", "Region", "Detalle", "Clave", "Fecha"])
+        except:
+            # Si falla la lectura, creamos la estructura desde cero
+            df_existente = pd.DataFrame(columns=["ID", "Tipo", "Entidad", "Categoria", "Region", "Detalle", "Clave", "Fecha"])
 
-# --- 5. LÓGICA DE LAS SECCIONES ---
+        # Crear el nuevo registro como DataFrame
+        df_nuevo = pd.DataFrame([nueva_fila_dict])
+        
+        # Concatenar asegurando que no haya filas totalmente vacías
+        df_existente = df_existente.dropna(how='all')
+        df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
+        
+        # Actualizar la hoja de Google
+        conn.update(data=df_final)
+        return True
+    except Exception as e:
+        st.error(f"Error técnico de conexión: {e}")
+        return False
 
-# --- SECCIÓN: INICIO ---
+# --- 5. NAVEGACIÓN LATERAL ---
+st.sidebar.markdown("<h2 style='color: #d4af37;'>Panel Innovación</h2>", unsafe_allow_html=True)
+menu = st.sidebar.radio("Ir a:", 
+    ["🏠 Inicio", "👥 Registro Talento", "🏢 Publicar Reto", "🎯 Muro de Matchmaking"])
+
+# --- 6. LÓGICA DE LAS SECCIONES ---
+
 if menu == "🏠 Inicio":
     st.markdown('<h1 class="main-title">Innovación Abierta Perú</h1>', unsafe_allow_html=True)
-    st.subheader("Conectando el Conocimiento con la Industria")
+    st.subheader("La plataforma que une la Ciencia con la Empresa")
     
     col1, col2 = st.columns(2)
     with col1:
-        st.info("🧬 **Para Investigadores:** Registra tu perfil Renacyt y encuentra retos que resolver.")
+        st.info("🧬 **Investigadores:** Registren su oferta tecnológica.")
     with col2:
-        st.success("🏢 **Para Empresas:** Publica tus brechas tecnológicas y encuentra al experto ideal.")
-    
-    st.image("https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?auto=format&fit=crop&w=1200", caption="Impulsando la Ciencia y Tecnología en el Perú")
+        st.success("🏢 **Empresas:** Publiquen sus desafíos técnicos.")
+    st.image("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1200")
 
-# --- SECCIÓN: REGISTRO TALENTO ---
-elif menu == "👥 Registro Talento (Investigadores)":
+elif menu == "👥 Registro Talento":
     st.header("Registro de Oferta Tecnológica")
     with st.form("form_talento"):
         nombre = st.text_input("Nombre Completo / Startup")
-        perfil = st.selectbox("Perfil", ["Investigador Renacyt", "Emprendedor Dinámico", "Consultor Tecnológico"])
-        region = st.selectbox("Región", ["Lima", "Arequipa", "Cusco", "Piura", "La Libertad", "Junín", "Otros"])
-        especialidad = st.text_area("Describa su especialidad o solución técnica")
-        clave = st.text_input("Defina una clave", type="password")
+        perfil = st.selectbox("Perfil", ["Investigador Renacyt", "Emprendedor Dinámico", "Consultor"])
+        region = st.selectbox("Región", ["Lima", "Arequipa", "Cusco", "Piura", "La Libertad", "Otros"])
+        especialidad = st.text_area("Describa su especialidad")
+        clave = st.text_input("Contraseña", type="password")
         
-        if st.form_submit_button("Guardar Mi Perfil"):
+        if st.form_submit_button("Registrar Perfil"):
             if nombre and clave:
-                try:
-                    # Leer datos actuales (Pestaña 'Talento' o por defecto)
-                    df_existente = conn.read()
-                    
-                    nuevo_id = f"T-{datetime.now().strftime('%M%S')}"
-                    nuevo_registro = pd.DataFrame([{
-                        "ID": nuevo_id,
-                        "Tipo": "TALENTO",
-                        "Entidad": nombre,
-                        "Categoria": perfil,
-                        "Region": region,
-                        "Detalle": especialidad,
-                        "Clave": clave,
-                        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }])
-                    
-                    df_final = pd.concat([df_existente, nuevo_registro], ignore_index=True)
-                    conn.update(data=df_final)
-                    
+                exito = guardar_en_gsheets({
+                    "ID": f"T-{datetime.now().strftime('%H%M%S')}",
+                    "Tipo": "TALENTO",
+                    "Entidad": nombre,
+                    "Categoria": perfil,
+                    "Region": region,
+                    "Detalle": especialidad,
+                    "Clave": clave,
+                    "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                if exito:
                     st.balloons()
-                    st.success(f"¡Bienvenido {nombre}! Tu perfil se guardó correctamente.")
-                except Exception as e:
-                    st.error(f"Error técnico al guardar: {e}")
+                    st.success(f"¡Bienvenido {nombre}! Perfil guardado en el Excel.")
             else:
-                st.warning("El nombre y la clave son obligatorios.")
+                st.warning("Nombre y clave son campos obligatorios.")
 
-# --- SECCIÓN: PUBLICAR RETO (EMPRESAS) ---
-elif menu == "🏢 Publicar Reto (Empresas)":
-    st.header("Portal de Demandas Tecnológicas")
-    with st.form("form_empresa"):
-        empresa = st.text_input("Nombre de la Empresa / Institución")
-        titulo_reto = st.text_input("Título del Reto (¿Qué necesita solucionar?)")
-        descripcion = st.text_area("Detalles del desafío o problema técnico")
-        prioridad = st.select_slider("Prioridad del Reto", options=["Baja", "Media", "Alta"])
-        region_reto = st.selectbox("Región del Reto", ["Nacional", "Lima", "Arequipa", "Piura", "Cusco"])
+elif menu == "🏢 Publicar Reto":
+    st.header("Portal de Demandas (Empresas)")
+    with st.form("form_reto"):
+        empresa = st.text_input("Empresa / Institución")
+        titulo = st.text_input("Título del Reto")
+        desc = st.text_area("¿Cuál es el desafío técnico?")
+        reg_reto = st.selectbox("Ubicación del Reto", ["Nacional", "Lima", "Arequipa", "Piura", "Cusco"])
         
-        if st.form_submit_button("Publicar Desafío en el Muro"):
-            if empresa and titulo_reto:
-                try:
-                    df_existente = conn.read()
-                    
-                    nuevo_id = f"R-{datetime.now().strftime('%M%S')}"
-                    nuevo_reto = pd.DataFrame([{
-                        "ID": nuevo_id,
-                        "Tipo": "RETO",
-                        "Entidad": empresa,
-                        "Categoria": titulo_reto,
-                        "Region": region_reto,
-                        "Detalle": descripcion,
-                        "Clave": "RETO-PUBLICO",
-                        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }])
-                    
-                    df_final = pd.concat([df_existente, nuevo_reto], ignore_index=True)
-                    conn.update(data=df_final)
-                    
-                    st.success("¡Reto publicado! Los investigadores ya pueden verlo en el muro.")
-                except Exception as e:
-                    st.error(f"Error al conectar con la base de datos: {e}")
+        if st.form_submit_button("Publicar Reto"):
+            if empresa and titulo:
+                exito = guardar_en_gsheets({
+                    "ID": f"R-{datetime.now().strftime('%H%M%S')}",
+                    "Tipo": "RETO",
+                    "Entidad": empresa,
+                    "Categoria": titulo,
+                    "Region": reg_reto,
+                    "Detalle": desc,
+                    "Clave": "RETO-PUBLICO",
+                    "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+                if exito:
+                    st.success("Reto publicado con éxito en la plataforma.")
             else:
-                st.warning("Completa el nombre de la empresa y el título del reto.")
+                st.warning("Empresa y Título son campos obligatorios.")
 
-# --- SECCIÓN: MURO DE MATCHMAKING ---
 elif menu == "🎯 Muro de Matchmaking":
     st.header("🎯 Muro de Innovación")
-    st.write("Explora los retos publicados y el talento disponible.")
-    
     try:
         df = conn.read()
-        if not df.empty:
+        if df is not None and not df.empty:
             tab1, tab2 = st.tabs(["🚀 Retos de Empresas", "👤 Talentos Registrados"])
             
             with tab1:
                 retos = df[df["Tipo"] == "RETO"]
-                if not retos.empty:
-                    for _, row in retos.iterrows():
-                        st.markdown(f"""
-                        <div class="card">
-                            <h3 style="color: #d4af37;">🔥 {row['Categoria']}</h3>
-                            <p><b>Empresa:</b> {row['Entidad']} | <b>Región:</b> {row['Region']}</p>
-                            <p>{row['Detalle']}</p>
-                            <small>Publicado: {row['Fecha']}</small>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.info("No hay retos publicados aún.")
+                for _, row in retos.iterrows():
+                    st.markdown(f'<div class="card"><h3 style="color:#d4af37;">🔥 {row["Categoria"]}</h3><p><b>Empresa:</b> {row["Entidad"]} | 📍 {row["Region"]}</p><p>{row["Detalle"]}</p></div>', unsafe_allow_html=True)
             
             with tab2:
                 talento = df[df["Tipo"] == "TALENTO"]
-                if not talento.empty:
-                    for _, row in talento.iterrows():
-                        st.markdown(f"""
-                        <div class="card" style="border-left: 5px solid #d4af37;">
-                            <h4 style="color: #fff;">👤 {row['Entidad']}</h4>
-                            <p><b>Perfil:</b> {row['Categoria']} | <b>Región:</b> {row['Region']}</p>
-                            <p><i>Especialidad:</i> {row['Detalle']}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                for _, row in talento.iterrows():
+                    st.markdown(f'<div class="card" style="border-left:5px solid #d4af37;"><h4 style="color:#fff;">👤 {row["Entidad"]}</h4><p><b>Perfil:</b> {row["Categoria"]} | 📍 {row["Region"]}</p><p><i>Especialidad:</i> {row["Detalle"]}</p></div>', unsafe_allow_html=True)
         else:
-            st.info("La base de datos está vacía. Sé el primero en registrarte.")
-    except Exception as e:
-        st.error(f"Error al cargar el muro: {e}")
+            st.info("Aún no hay datos. ¡Sé el primero en registrarte!")
+    except:
+        st.info("La base de datos está inicializándose.")
 
 # --- PIE DE PÁGINA ---
 st.sidebar.markdown("---")
-st.sidebar.caption("v3.0 - Innovación Abierta Perú")
-st.sidebar.caption("Powered by Google Sheets & Streamlit")
+st.sidebar.caption("v4.0 - Innovación Abierta Perú")
